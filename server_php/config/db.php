@@ -5,9 +5,9 @@
 
 define('DB_HOST',   'localhost');
 define('DB_NAME',   'corporat_ecommerce_geo');
-define('DB_USER',   'corporat_ecommerce_user'); // Usuario de la aplicación
+define('DB_USER',   'corporat_ecomers_user'); // Usuario de la aplicación
 
-define('DB_PASS',   'YcZQVfi95C8GcWX'); // Contraseña del usuario corporat_ecommerce_user
+define('DB_PASS',   '?bPE(0P$4kgC@C.q'); // Contraseña del usuario corporat_ecommerce_user
 define('DB_CHARSET','utf8mb4');
 
 // URL base del sitio (ajustar en producción)
