@@ -8,9 +8,38 @@ requireAdmin();
 
 $db = getDB();
 
-// Actualizar estado de pedido
+// Acciones POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['order_id'])) {
-    $orderId   = (int)$_POST['order_id'];
+    $orderId = (int)$_POST['order_id'];
+    $action  = sanitize($_POST['action'] ?? 'update_status');
+
+    // Verificar transferencia bancaria
+    if ($action === 'verify_transfer') {
+        $db->prepare("UPDATE payments SET transfer_verified=1, status='completed', paid_at=NOW(), updated_at=NOW() WHERE order_id=?")
+           ->execute([$orderId]);
+        $db->prepare("UPDATE orders SET status='confirmed', updated_at=NOW() WHERE id=?")
+           ->execute([$orderId]);
+        $db->prepare("INSERT INTO order_status_history (order_id,status,comment,created_by) VALUES (?,?,?,?)")
+           ->execute([$orderId, 'confirmed', 'Pago por transferencia verificado y aprobado.', $_SESSION['user_id']]);
+        setFlash('success', '✅ Transferencia verificada. Pedido confirmado.');
+        header('Location: ' . BASE_URL . '/admin/orders.php?id=' . $orderId);
+        exit;
+    }
+
+    // Rechazar transferencia
+    if ($action === 'reject_transfer') {
+        $db->prepare("UPDATE payments SET transfer_verified=0, status='failed', updated_at=NOW() WHERE order_id=?")
+           ->execute([$orderId]);
+        $db->prepare("UPDATE orders SET status='pending', updated_at=NOW() WHERE id=?")
+           ->execute([$orderId]);
+        $db->prepare("INSERT INTO order_status_history (order_id,status,comment,created_by) VALUES (?,?,?,?)")
+           ->execute([$orderId, 'pending', 'Comprobante rechazado. Se solicita nuevo comprobante.', $_SESSION['user_id']]);
+        setFlash('warning', 'Comprobante rechazado. El cliente deberá subir uno nuevo.');
+        header('Location: ' . BASE_URL . '/admin/orders.php?id=' . $orderId);
+        exit;
+    }
+
+    // Actualizar estado de pedido
     $newStatus = sanitize($_POST['status'] ?? '');
     $comment   = sanitize($_POST['comment'] ?? '');
 
@@ -175,12 +204,71 @@ $allStatuses  = array_keys($statusLabels);
         <!-- Pago -->
         <?php if ($payment): ?>
         <div class="card p-4 mb-4">
-          <h6 class="fw-bold mb-2"><i class="bi bi-credit-card me-2 text-primary"></i>Pago</h6>
-          <p class="mb-1 small"><?= e($payment['method_name']) ?></p>
-          <p class="mb-1 small">Monto: <strong><?= money($payment['amount']) ?></strong></p>
-          <span class="badge bg-<?= $payment['status']==='completed'?'success':'warning' ?> text-dark">
-            <?= ucfirst($payment['status']) ?>
+          <h6 class="fw-bold mb-2"><i class="bi bi-credit-card me-2 text-primary"></i>Información de pago</h6>
+          <p class="mb-1 small"><strong>Método:</strong> <?= e($payment['method_name']) ?></p>
+          <p class="mb-2 small"><strong>Monto:</strong> <?= money($payment['amount']) ?></p>
+          <span class="badge bg-<?= $payment['status']==='completed'?'success':($payment['status']==='processing'?'info':'warning text-dark') ?>">
+            <?= ['pending'=>'Pendiente','processing'=>'En revisión','completed'=>'Completado','failed'=>'Fallido'][$payment['status']] ?? $payment['status'] ?>
           </span>
+
+          <?php if ($payment['payment_type'] === 'bank_transfer'): ?>
+          <hr class="my-3">
+          <p class="small fw-semibold mb-2"><i class="bi bi-bank2 me-2 text-success"></i>Detalles de transferencia</p>
+
+          <?php if ($payment['transfer_reference']): ?>
+            <p class="small mb-1"><strong>Referencia:</strong>
+              <span class="badge bg-light text-dark border"><?= e($payment['transfer_reference']) ?></span>
+            </p>
+          <?php endif; ?>
+
+          <?php if ($payment['transfer_proof_url']): ?>
+            <p class="small fw-semibold mt-2 mb-1">Comprobante:</p>
+            <?php
+            $ext = strtolower(pathinfo($payment['transfer_proof_url'], PATHINFO_EXTENSION));
+            if ($ext === 'pdf'): ?>
+              <a href="<?= e($payment['transfer_proof_url']) ?>" target="_blank"
+                 class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-file-pdf me-1"></i>Ver PDF
+              </a>
+            <?php else: ?>
+              <a href="<?= e($payment['transfer_proof_url']) ?>" target="_blank">
+                <img src="<?= e($payment['transfer_proof_url']) ?>"
+                     style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid #dee2e6;cursor:zoom-in"
+                     alt="Comprobante de transferencia">
+              </a>
+            <?php endif; ?>
+
+            <?php if (!$payment['transfer_verified']): ?>
+            <div class="d-flex gap-2 mt-3">
+              <form method="POST" class="flex-fill">
+                <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
+                <input type="hidden" name="action"   value="verify_transfer">
+                <button type="submit" class="btn btn-success btn-sm w-100"
+                        onclick="return confirm('¿Confirmar que la transferencia es válida?')">
+                  <i class="bi bi-check-circle-fill me-1"></i>Verificar pago
+                </button>
+              </form>
+              <form method="POST" class="flex-fill">
+                <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
+                <input type="hidden" name="action"   value="reject_transfer">
+                <button type="submit" class="btn btn-outline-danger btn-sm w-100"
+                        onclick="return confirm('¿Rechazar este comprobante?')">
+                  <i class="bi bi-x-circle me-1"></i>Rechazar
+                </button>
+              </form>
+            </div>
+            <?php else: ?>
+              <div class="alert alert-success border-0 rounded-3 mt-2 small mb-0 py-2">
+                <i class="bi bi-check-circle-fill me-2"></i><strong>Transferencia verificada</strong>
+              </div>
+            <?php endif; ?>
+
+          <?php else: ?>
+            <div class="alert alert-warning border-0 rounded-3 mt-2 small mb-0 py-2">
+              <i class="bi bi-hourglass-split me-2"></i>Esperando que el cliente suba el comprobante.
+            </div>
+          <?php endif; ?>
+          <?php endif; ?>
         </div>
         <?php endif; ?>
         <!-- Historial -->

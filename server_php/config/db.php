@@ -7,13 +7,13 @@ define('DB_HOST',   'localhost');
 define('DB_NAME',   'corporat_ecommerce_geo');
 define('DB_USER',   'corporat_ecomers_user'); // Usuario de la aplicación
 
-define('DB_PASS',   '?bPE(0P$4kgC@C.q'); // Contraseña del usuario corporat_ecommerce_user
+define('DB_PASS',   'uF[?JUU-cS^,&t7K'); // Contraseña del usuario corporat_ecomers_user
 define('DB_CHARSET','utf8mb4');
 
-// URL base del sitio (ajustar en producción)
+// URL base del sitio — apunta siempre a la carpeta server_php
 define('BASE_URL', (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http')
     . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost')
-    . rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/\\'));
+    . '/Geo-ecomers/server_php');
 
 function getDB(): PDO {
     static $pdo = null;
@@ -29,8 +29,8 @@ function getDB(): PDO {
         } catch (PDOException $e) {
             error_log('DB Connection Error: ' . $e->getMessage());
             die('<div style="font-family:sans-serif;padding:40px;text-align:center;color:#c00">
-                <h2>Error de conexión a la base de datos</h2>
-                <p>Por favor verifica la configuración en <code>config/db.php</code></p>
+                <h2>Error de conexión</h2>
+                <p><b>' . htmlspecialchars($e->getMessage()) . '</b></p>
                 </div>');
         }
     }
