@@ -65,9 +65,17 @@ $user       = currentUser();
       </form>
 
       <ul class="navbar-nav ms-auto align-items-center gap-1">
+
+        <!-- Productos (siempre visible) -->
+        <li class="nav-item">
+          <a class="nav-link" href="<?= BASE_URL ?>/index.php">
+            <i class="bi bi-grid me-1"></i>Productos
+          </a>
+        </li>
+
         <!-- Cart -->
         <li class="nav-item">
-          <a class="nav-link" href="<?= BASE_URL ?>/cart.php">
+          <a class="nav-link position-relative" href="<?= BASE_URL ?>/cart.php">
             <i class="bi bi-cart3 fs-5"></i>
             <?php if ($cartItems > 0): ?>
               <span class="badge bg-warning text-dark badge-cart"><?= $cartItems ?></span>
@@ -76,6 +84,14 @@ $user       = currentUser();
         </li>
 
         <?php if (isLoggedIn()): ?>
+          <?php if (isAdmin()): ?>
+            <!-- Acceso directo al panel admin -->
+            <li class="nav-item">
+              <a class="nav-link" href="<?= BASE_URL ?>/admin/index.php" title="Panel Admin">
+                <i class="bi bi-speedometer2 fs-5"></i>
+              </a>
+            </li>
+          <?php endif; ?>
           <!-- User dropdown -->
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
@@ -87,11 +103,12 @@ $user       = currentUser();
               <?= e(explode(' ', $user['name'])[0]) ?>
             </a>
             <ul class="dropdown-menu dropdown-menu-end">
+              <li><a class="dropdown-item" href="<?= BASE_URL ?>/index.php"><i class="bi bi-house me-2"></i>Inicio / Productos</a></li>
               <li><a class="dropdown-item" href="<?= BASE_URL ?>/profile.php"><i class="bi bi-person me-2"></i>Mi perfil</a></li>
               <li><a class="dropdown-item" href="<?= BASE_URL ?>/orders.php"><i class="bi bi-box-seam me-2"></i>Mis pedidos</a></li>
               <?php if (isAdmin()): ?>
                 <li><hr class="dropdown-divider"></li>
-                <li><a class="dropdown-item text-primary" href="<?= BASE_URL ?>/admin/index.php"><i class="bi bi-speedometer2 me-2"></i>Panel Admin</a></li>
+                <li><a class="dropdown-item text-primary fw-semibold" href="<?= BASE_URL ?>/admin/index.php"><i class="bi bi-speedometer2 me-2"></i>Panel Admin</a></li>
               <?php endif; ?>
               <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item text-danger" href="<?= BASE_URL ?>/auth/logout.php"><i class="bi bi-box-arrow-right me-2"></i>Cerrar sesión</a></li>

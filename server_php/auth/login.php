@@ -40,8 +40,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'INSERT INTO activity_log (user_id, action, ip_address, user_agent) VALUES (?,?,?,?)'
             )->execute([$user['id'], 'login', $_SERVER['REMOTE_ADDR'] ?? null, $_SERVER['HTTP_USER_AGENT'] ?? null]);
 
-            $redirect = $_SESSION['redirect_after_login'] ?? BASE_URL . '/index.php';
-            unset($_SESSION['redirect_after_login']);
+            // Redirección inteligente por rol
+            if (!empty($_SESSION['redirect_after_login'])) {
+                $redirect = $_SESSION['redirect_after_login'];
+                unset($_SESSION['redirect_after_login']);
+            } elseif ($user['role'] === 'admin') {
+                $redirect = BASE_URL . '/admin/index.php';   // Admin → panel
+            } else {
+                $redirect = BASE_URL . '/index.php';          // Cliente → tienda
+            }
+
             header('Location: ' . $redirect);
             exit;
         }

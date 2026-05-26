@@ -7,32 +7,59 @@ require_once __DIR__ . '/includes/functions.php';
 
 $db = getDB();
 
+// ── Helper: ejecutar add al carrito ──────────────────────────
+function doAddToCart(PDO $db, int $productId, int $qty): void {
+    $cartId   = getOrCreateCart();
+    $existing = $db->prepare('SELECT id FROM cart_items WHERE cart_id=? AND product_id=? AND variant_id IS NULL');
+    $existing->execute([$cartId, $productId]);
+    $row = $existing->fetch();
+    if ($row) {
+        $db->prepare('UPDATE cart_items SET quantity = quantity + ? WHERE id = ?')
+           ->execute([$qty, $row['id']]);
+    } else {
+        $priceStmt = $db->prepare('SELECT price FROM products WHERE id = ? AND status="active"');
+        $priceStmt->execute([$productId]);
+        $price = (float)$priceStmt->fetchColumn();
+        if ($price > 0) {
+            $db->prepare('INSERT INTO cart_items (cart_id, product_id, quantity, unit_price) VALUES (?,?,?,?)')
+               ->execute([$cartId, $productId, $qty, $price]);
+        }
+    }
+}
+
+// ── Si acaba de iniciar sesión y tenía un add pendiente ───────
+if (isLoggedIn() && !empty($_SESSION['pending_cart_add'])) {
+    $pending = $_SESSION['pending_cart_add'];
+    unset($_SESSION['pending_cart_add']);
+    doAddToCart($db, (int)$pending['product_id'], (int)$pending['qty']);
+    setFlash('success', 'Producto agregado al carrito.');
+    header('Location: ' . BASE_URL . '/cart.php');
+    exit;
+}
+
 // Acciones POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'add' && !empty($_POST['product_id'])) {
-        requireLogin();
         $productId = (int)$_POST['product_id'];
         $qty       = max(1, (int)($_POST['qty'] ?? 1));
-        $cartId    = getOrCreateCart();
 
-        $existing = $db->prepare('SELECT id, quantity FROM cart_items WHERE cart_id=? AND product_id=? AND variant_id IS NULL');
-        $existing->execute([$cartId, $productId]);
-        $row = $existing->fetch();
-
-        if ($row) {
-            $db->prepare('UPDATE cart_items SET quantity = quantity + ? WHERE id = ?')
-               ->execute([$qty, $row['id']]);
-        } else {
-            $priceStmt = $db->prepare('SELECT price FROM products WHERE id = ?');
-            $priceStmt->execute([$productId]);
-            $price = (float)$priceStmt->fetchColumn();
-            $db->prepare('INSERT INTO cart_items (cart_id, product_id, quantity, unit_price) VALUES (?,?,?,?)')
-               ->execute([$cartId, $productId, $qty, $price]);
+        if (!isLoggedIn()) {
+            // Guardar intent y redirigir al login
+            $_SESSION['pending_cart_add']    = ['product_id' => $productId, 'qty' => $qty];
+            $_SESSION['redirect_after_login'] = BASE_URL . '/cart.php';
+            setFlash('info', 'Inicia sesión para agregar productos al carrito.');
+            header('Location: ' . BASE_URL . '/auth/login.php');
+            exit;
         }
+
+        doAddToCart($db, $productId, $qty);
         setFlash('success', 'Producto agregado al carrito.');
-        header('Location: ' . BASE_URL . '/cart.php');
+
+        // Volver a donde estaba (product page o index)
+        $back = $_SERVER['HTTP_REFERER'] ?? BASE_URL . '/index.php';
+        header('Location: ' . $back);
         exit;
     }
 
